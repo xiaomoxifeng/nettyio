@@ -1,43 +1,35 @@
 
 
 
-import java.util.HashMap;
-import java.util.Map;
+import com.raventech.projectflow.utils.log.FlowLog;
+
+import java.util.Iterator;
 
 import io.netty.channel.Channel;
 import io.netty.channel.group.ChannelGroup;
 import io.netty.channel.group.DefaultChannelGroup;
+import io.netty.util.AttributeKey;
 import io.netty.util.concurrent.GlobalEventExecutor;
 
 /**
  * Created by wh on 16/7/25.
  */
 public class TCPChannelPool {
-    private static Map<String, Channel> channelMap = new HashMap<>();
+
     private static ChannelGroup channelGroup = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
 
     public static boolean add(Channel channel, String imuid) {
-        if (!channelGroup.contains(channel)) {
-            if (channelGroup.add(channel)) {
-                channelMap.put(imuid, channel);
-                return true;
-            } else {
-                return false;
-            }
-        } else {
-            return true;
-        }
+        channel.attr(AttributeKey.valueOf(imuid));
+        return channelGroup.add(channel);
     }
 
     public static Channel getChannel(String imuid) {
-        if (channelMap.containsKey(imuid)) {
-            if (channelGroup.contains(channelMap.get(imuid))){
-               return channelGroup.find(channelMap.get(imuid).id());
-            }else{
-                channelMap.remove(imuid);
-                return null;
+        Channel channel;
+        Iterator<Channel> iterator = channelGroup.iterator();
+        while (iterator.hasNext()) {
+            if ((channel = iterator.next()).hasAttr(AttributeKey.valueOf(imuid))) {
+                return channel;
             }
-
         }
         return null;
     }
@@ -49,24 +41,30 @@ public class TCPChannelPool {
     }
 
     public static void remove(String imuid) {
-        if (channelMap.containsKey(imuid)) {
-
-            if (channelGroup.contains(channelMap.get(imuid))){
-            channelGroup.remove(channelMap.get(imuid));}
-
-            channelMap.remove(imuid);
+        Channel channel;
+        Iterator<Channel> iterator = channelGroup.iterator();
+        while (iterator.hasNext()) {
+            if ((channel = iterator.next()).hasAttr(AttributeKey.valueOf(imuid))) {
+                channelGroup.remove(channel);
+            }
         }
     }
 
     public static boolean send(String imuid, String content) {
-        if(getChannel(imuid).isActive()){
-            getChannel(imuid).writeAndFlush(content);
+        Channel channel;
+        if ((channel = getChannel(imuid)).isActive()) {
+            channel.writeAndFlush(content);
             return true;
-        }else{
+        } else {
             remove(imuid);
+            FlowLog.d("TCPChannelPool", "channel die");
             return false;
         }
 
+    }
 
+    //
+    public static void send(String content) {
+        channelGroup.writeAndFlush(content);
     }
 }
