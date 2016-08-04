@@ -1,16 +1,16 @@
 
+
 import java.util.Date;
-import com.google.gson.Gson;
-import de.greenrobot.event.EventBus;
+
 import io.netty.channel.ChannelHandlerAdapter;
 import io.netty.channel.ChannelHandlerContext;
 
 /**
+ * 每一个Channel资源不共享
  * Created by wh on 16/7/22.
  */
 public class TCPServerHanlder extends ChannelHandlerAdapter {
-    private Gson gson = new Gson();
- 
+    private String id;
 
     /**
      * channelAction
@@ -26,7 +26,9 @@ public class TCPServerHanlder extends ChannelHandlerAdapter {
         //添加到channelGroup 通道组
         //        MyChannelHandlerPool.channelGroup.add(ctx.channel());
         //通知您已经链接上客户端
-        String str = "您已经开启与服务端链接" + " " + new Date() + " " + ctx.channel().localAddress();
+        String str = "您已经开启与服务端链接" + " " + new Date() + " " + ctx.channel().remoteAddress();
+        id = ctx.channel().remoteAddress().toString();
+        TCPChannelPool.add(ctx.channel(),id);
         ctx.writeAndFlush(str);
     }
 
@@ -41,9 +43,9 @@ public class TCPServerHanlder extends ChannelHandlerAdapter {
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
         // 从channelGroup中移除，当有客户端退出后，移除channel。
-        if (null != boxOperation) {
-            TCPChannelPool.remove(boxOperation.from);
-        }
+
+        TCPChannelPool.remove(id);
+
         System.out.println(ctx.channel().localAddress().toString() + " channelInactive");
     }
 
@@ -59,9 +61,11 @@ public class TCPServerHanlder extends ChannelHandlerAdapter {
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         System.out.println(new Date() + " " + msg);
-    
-        EventBus.getDefault().post(XXXX);
-        TCPChannelPool.add(ctx.channel(), boxOperation.from);
+//        id = msg.toString();
+//        boxOperation = gson.fromJson(String.valueOf(msg), BoxOperation.class);
+//        EventBus.getDefault().post(boxOperation);
+//        TCPChannelPool.add(ctx.channel(), id);
+        TCPChannelPool.send(id, "I am rec" + msg.toString());
 
     }
 
@@ -89,7 +93,7 @@ public class TCPServerHanlder extends ChannelHandlerAdapter {
      */
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause)
             throws Exception {
-        TCPChannelPool.remove(boxOperation.from);
+        TCPChannelPool.remove(id);
         ctx.close();
         System.out.println("异常信息：\r\n" + cause.getMessage());
     }
